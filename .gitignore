@@ -1,0 +1,6 @@
+*.out
+*.cpp
+*.c
+*.xml
+*.iml
+.idea/*
