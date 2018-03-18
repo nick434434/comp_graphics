@@ -1,10 +1,11 @@
-from scipy.spatial import ConvexHull
-from lab1 import Point2
+# from scipy.spatial import ConvexHull
+# from lab1 import Point2
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d, Axes3D, art3d
 from config import CONFIG
 from pyhull.convex_hull import qconvex as qh
+import math as m
 
 
 col = [
@@ -75,12 +76,18 @@ def shift_matrix(b, c, d, f, g, h):
                      ])
 
 
-class Point(Point2):
-    def __init__(self, x, y, z, mul = False):
-        Point2.__init__(self, (x, y, z), mul)
+def rotate_matrix1(theta):
+    return np.array([[1, 0, 0, 0], [0, m.cos(theta), m.sin(theta), 0],
+                     [0, -m.sin(theta), m.cos(theta), 0], [0, 0, 0, 1]])
 
-    def __repr__(self):
-        return np.array([self.x, self.y, self.z, 1])
+def rotate_matrix2(psy):
+    return np.array([[m.cos(psy), m.sin(psy), 0, 0], [-m.sin(psy), m.cos(psy), 0, 0],
+                     [0, 0, 1, 0], [0, 0, 0, 1]])
+
+
+def rotate_matrix3(phi):
+    return np.array([[m.cos(phi), 0,  -m.sin(phi), 0], [0, 1, 0, 0],
+                     [m.sin(phi), 0, m.cos(phi), 0], [0, 0, 0, 1]])
 
 
 if __name__ == "__main__":
@@ -105,5 +112,60 @@ if __name__ == "__main__":
     print T
     new_points = transform(points, T)
     print new_points
-    draw([points, new_points], poly, 'Scaling')
+    draw([points, new_points], poly, 'Shifts')
 
+    T = rotate_matrix1(270 * m.pi/180)
+    print T
+    new_points = transform(points, T)
+    print new_points
+    draw([points, new_points], poly, 'Rotate 1')
+
+    T = rotate_matrix3(90 * m.pi / 180)
+    print T
+    new_points = transform(points, T)
+    print new_points
+    draw([points, new_points], poly, 'Rotate 3')
+
+    T = np.array([
+        [0, 0, -1, 0],
+        [1, 0, 0, 0],
+        [0, -1, 0, 0],
+        [0, 0, 0, 1]
+    ])
+    print T
+    new_points = transform(points, T)
+    print new_points
+    draw([points, new_points], poly, 'Rotate combined 1')
+
+    T = np.array([
+        [0, 1, 0, 0],
+        [0, 0, 1, 0],
+        [1, 0, 0, 0],
+        [0, 0, 0, 1]
+    ])
+    print T
+    new_points = transform(points, T)
+    print new_points
+    draw([points, new_points], poly, 'Rotate combined 2')
+
+    T = np.array([
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
+        [0, 0, -1, 0],
+        [0, 0, 0, 1]
+    ])
+    print T
+    new_points = transform(points, T)
+    print new_points
+    draw([points, new_points], poly, 'Mirror')
+
+    T = np.array([
+        [0, 0, -1, 0],
+        [1, 0, 0, 0],
+        [0, -1, 0, 0],
+        [0, 0, 0, 1]
+    ])
+    print T
+    new_points = transform(points, T)
+    print new_points
+    draw([points, new_points], poly, 'Rotate combined 1')
