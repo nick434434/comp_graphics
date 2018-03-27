@@ -3,6 +3,15 @@ import cv2
 import matplotlib.pyplot as plt
 import math as m
 
+col = [
+    (0, 1, 0),
+    (1, 0, 0),
+    (0, 0, 1),
+    (0, 0.6, 0.6),
+    (0.6, 0.6, 0),
+    (0.6, 0, 0.6)
+]
+
 
 def ellipse(a, b, n):
     delta_theta = 2 * m.pi / (n - 1)
@@ -19,7 +28,6 @@ def ellipse(a, b, n):
         points.append(new_point)
 
     return np.array(points)
-
 
 
 def parabola(a, begin, end, n):
@@ -62,18 +70,31 @@ def hyperbola(a, b, begin, end, n):
     return np.array(points + points_rev)
 
 
-def draw(points, window_name):
-    if window_name is 'Ellipse':
-        points = 40 * np.array(points)
+def draw(points, window_name, is_ellipse, multiply=True):
+    if multiply:
+        for i in range(len(points)):
+            if is_ellipse[i]:
+                points[i] = (40 * np.array(points[i])).astype(np.int32)
+            else:
+                points[i] = (10 * np.array(points[i])).astype(np.int32)
     else:
-        points = 10 * np.array(points)
-    minimum = np.min(np.min(points))
+        minimum = min([np.min(np.min(points[i])) for i in range(len(points))])
+        points -= minimum
+        maximum = min([np.max(np.max(points[i])) for i in range(len(points))])
+        for i in range(len(points)):
+            points[i] = (300 / maximum * np.array(points[i])).astype(np.int32)
+    minimum = min([np.min(np.min(points[i])) for i in range(len(points))])
+    print(minimum)
     points -= minimum
-    points = points.astype(np.int32)
+    maximum = min([np.max(np.max(points[i])) for i in range(len(points))])
+    print(maximum)
+    # points = points.astype(np.int32)
     img = 255*np.ones((400, 400, 3))
-    for i in range(0, len(points) - 1):
-        if window_name == 'Ellipse' or len(points) / 2 != i+1:
-            cv2.line(img, (points[i][0], points[i][1]), (points[i+1][0], points[i+1][1]), (255, 0, 0))
+    for j, point_list in enumerate(points):
+        for i in range(0, len(point_list) - 1):
+            if is_ellipse[j] or len(point_list) / 2 != i+1:
+                color = (col[j][0]*255, col[j][1]*255, col[j][2]*255)
+                cv2.line(img, (point_list[i][0], point_list[i][1]), (point_list[i+1][0], point_list[i+1][1]), color)
     fig, ax = plt.subplots()
     ax.imshow(img)
     ax.set_title(window_name)
@@ -105,14 +126,19 @@ def transform(points, T):
 
 if __name__ == "__main__":
     hyp = hyperbola(2, 1, 2.1, 6, 20)
-    draw(hyp, 'Hyperbola')
-'''
+    draw([hyp], 'Hyperbola', [False])
+
     el = ellipse(1, 4, 40)
-    draw(el, 'Ellipse')
+    draw([el], 'Ellipse', [True])
 
-    T = rotate_matrix(30)
-    draw(transform(el, T), 'Ellipse 1')
+    par = parabola(1, 0, 3, 20)
+    draw([par], 'Parabola', [False])
 
-    par = parabola(1, 0, 6, 20)
-    draw(par, 'Parabola')
-'''
+    T = rotate_matrix(30 * m.pi / 180)
+    draw([transform(el, T)], 'Ellipse transformed', [True])
+
+    draw([par, hyp], 'Par, Hyp', [False, False])
+
+    T = shift_matrix(10, -2)
+    T1 = rotate_matrix(90 * m.pi / 180)
+    draw([transform(transform(par, T), T1), hyp], 'Par transformed, Hyp', [False, False], False)
