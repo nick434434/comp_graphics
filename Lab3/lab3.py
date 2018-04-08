@@ -1,118 +1,144 @@
 import numpy as np
-import math as m
-from typing import List, Tuple
+import cv2
 import matplotlib.pyplot as plt
+import math as m
+
+col = [
+    (0, 1, 0),
+    (1, 0, 0),
+    (0, 0, 1),
+    (0, 0.6, 0.6),
+    (0.6, 0.6, 0),
+    (0.6, 0, 0.6)
+]
 
 
-def spline(points: List[Tuple[float, float]], cond_type: str, conditions: List[Tuple[float, float]]=None, cnt=100):
-    n = len(points) - 1
-    dp = np.zeros((n + 1, 2), dtype=np.float)
-    for i, tp in enumerate(points):
-        dp[i, :] = tp
+def ellipse(a, b, n):
+    delta_theta = 2 * m.pi / (n - 1)
+    start = [a * m.cos(0), b * m.sin(0)]
 
-    t = np.sqrt((dp[1:, 0] - dp[:-1, 0]) ** 2 + (dp[1:, 1] - dp[:-1, 1]) ** 2)
+    points = [start]
 
-    a = np.zeros((n + 1, n + 1), dtype=np.float)
+    cos = m.cos(delta_theta)
+    sin = m.sin(delta_theta)
+
     for i in range(1, n):
-        a[i, i - 1] = t[i]
-        a[i, i + 1] = t[i - 1]
-        a[i, i] = 2 * (t[i] + t[i - 1])
+        xi, yi = points[i-1]
+        new_point = [xi*cos - 1.0 * a / b * yi*sin, 1.0 * b / a * xi*sin + yi*cos]
+        points.append(new_point)
 
-    b = np.zeros((n + 1, 2), dtype=np.float)
+    return np.array(points)
+
+
+def parabola(a, begin, end, n):
+    th_min = m.sqrt(1.0 * begin / a)
+    th_max = m.sqrt(1.0 * end / a)
+    delta_theta = (th_max - th_min) * m.pi / (n - 1)
+    start = [a * th_min * th_min, 2*a*th_min]
+
+    points = [start]
+
     for i in range(1, n):
-        b[i, :] = 3.0 / (t[i - 1] * t[i]) * \
-                  (t[i - 1] ** 2 * (dp[i + 1, :] - dp[i, :]) +
-                   t[i] ** 2 * (dp[i, :] - dp[i - 1, :]))
+        xi, yi = points[i-1]
+        new_point = [xi + delta_theta*(yi + a*delta_theta), yi + 2*a*delta_theta]
+        points.append(new_point)
 
-    if cond_type == "fixed":
-        b[0, :] = conditions[0]
-        b[-1, :] = conditions[1]
-        a[0, 0] = 1
-        a[-1, -1] = 1
-    elif cond_type == "weak":
-        b[0, :] = 3.0 / 2 / t[1] * (dp[1, :] - dp[0, :])
-        b[-1, :] = 6.0 / t[-1] * (dp[-1, :] - dp[-2, :])
-        a[0, 0] = 1
-        a[0, 1] = .5
-        a[-1, -2] = 2
-        a[-1, -1] = 4
-    elif cond_type == "cyclic" or cond_type == "acyclic":
-        a[0, 0] = 2 * (1 + t[-1] / t[1])
-        a[0, 1] = t[-1] / t[1]
-        a[0, -2] = 1 if cond_type == "cyclic" else -1
-        b[0, :] = 3. * (t[-1] / t[1]**2 * (dp[1, :] - dp[0, :]) - (dp[-2, :] - dp[-1, :]) / t[-1])
-        a = a[:-1, :-1]
-        b = b[:-1, :]
-
-    p_ = np.linalg.inv(a) @ b
-    if cond_type == "cyclic" or cond_type == "acyclic":
-        tmp = np.zeros((p_.shape[0] + 1, 2))
-        tmp[:-1, :] = p_
-        tmp[-1, :] = p_[0, :] * (1 if cond_type == "cyclic" else -1)
-        p_ = tmp
-
-    p_list = []
-    n_per_iter = cnt // n + 1
-    tau = np.linspace(0, 1, n_per_iter).reshape((n_per_iter, 1))
-    tau_2 = tau ** 2
-    tau_3 = tau_2 * tau
-    for i in range(n):
-        f_vec = np.hstack([2 * tau_3 - 3 * tau_2 + 1,
-                           -2 * tau_3 + 3 * tau_2,
-                           tau * (tau - 1) ** 2 * t[i],
-                           tau * (tau_2 - tau) * t[i]])
-        p_vec = np.vstack([dp[i, :], dp[i + 1, :], p_[i, :], p_[i + 1, :]])
-        seg_points = f_vec @ p_vec
-        seg_points = np.hstack([seg_points, np.ones((n_per_iter, 1))])
-        p_list.append(seg_points)
-
-    return np.vstack(p_list)
+    points_rev = [[p[0], -p[1]] for p in reversed(points)]
+    return np.array(points_rev + points)
 
 
-def draw_spline(p, t, c=None, transform=None):
-    spn = spline(p, t, c)
-    if transform is not None:
-        spn = spn @ transform
-        spn[:, :-1] = np.array([np.array(s[:-1]) / s[-1] for s in list(spn)]).reshape(spn.shape[0], spn.shape[1]-1)
+def hyperbola(a, b, begin, end, n):
+    th_min = m.acosh(1.0 * begin / a)
+    th_max = m.acosh(1.0 * end / a)
+    delta_theta = (th_max - th_min) / (n - 1)
+    start = [a * m.cosh(th_min), b * m.sinh(th_min)]
 
-    print(spn)
+    points = [start]
+
+    cosh = m.cosh(delta_theta)
+    sinh = m.sinh(delta_theta)
+
+    for i in range(1, n):
+        xi, yi = points[i - 1]
+        new_point = [xi*cosh + yi*a/b*sinh, a/b*xi*sinh + yi*cosh]
+        points.append(new_point)
+
+    points_rev = [[p[0], -p[1]] for p in reversed(points)]
+    points = points_rev + points
+    points_rev = [[-p[0], p[1]] for p in reversed(points)]
+
+    return np.array(points + points_rev)
+
+
+def draw(points, window_name, is_ellipse, multiply=True):
+    if multiply:
+        for i in range(len(points)):
+            if is_ellipse[i]:
+                points[i] = (40 * np.array(points[i])).astype(np.int32)
+            else:
+                points[i] = (10 * np.array(points[i])).astype(np.int32)
+    else:
+        minimum = min([np.min(np.min(points[i])) for i in range(len(points))])
+        points -= minimum
+        maximum = min([np.max(np.max(points[i])) for i in range(len(points))])
+        for i in range(len(points)):
+            points[i] = (300 / maximum * np.array(points[i])).astype(np.int32)
+    minimum = min([np.min(np.min(points[i])) for i in range(len(points))])
+    print(minimum)
+    points -= minimum
+    maximum = min([np.max(np.max(points[i])) for i in range(len(points))])
+    print(maximum)
+    # points = points.astype(np.int32)
+    img = 255*np.ones((400, 400, 3))
+    for j, point_list in enumerate(points):
+        for i in range(0, len(point_list) - 1):
+            if is_ellipse[j] or len(point_list) / 2 != i+1:
+                color = (col[j][0]*255, col[j][1]*255, col[j][2]*255)
+                cv2.line(img, (point_list[i][0], point_list[i][1]), (point_list[i+1][0], point_list[i+1][1]), color)
     fig, ax = plt.subplots()
-    ax.set_aspect('equal')
-    ax.grid(True, which='both')
-    plt.plot(spn[:, 0], spn[:, 1])
+    ax.imshow(img)
+    ax.set_title(window_name)
     plt.show()
-
-
-def rotate_matrix(phi):
-    phi *= m.pi / 180
-    return np.array([
-        [m.cos(phi), m.sin(phi), 0],
-        [-m.sin(phi), m.cos(phi), 0],
-        [0, 0, 1]
-    ])
+    return img
 
 
 def shift_matrix(x, y):
-    return np.array([
-        [1, 0, 0],
-        [0, 1, 0],
-        [x, y, 1]
-    ])
+    return np.array([[1, 0, 0], [0, 1, 0], [-x, -y, 1]])
+
+
+def rotate_matrix(phi):
+    return np.array([[m.cos(phi), -m.sin(phi), 0], [m.sin(phi), m.cos(phi), 0], [0, 0, 1]])
+
+
+def reflect_matrix(x, y):
+    a = np.zeros((3, 3))
+    a[0, 0] = x
+    a[1, 1] = y
+    a[2, 2] = 1
+    return a
+
+
+def transform(points, T):
+    points = [[p[0], p[1], 1] for p in list(points)]
+    transformed = [[p[0] / p[2], p[1] / p[2]] for p in list(np.matmul(points, T))]
+    return np.array(transformed)
 
 
 if __name__ == "__main__":
-    points = [(0, 0),
-              (2, 1),
-              (4, -3),
-              (6, 7)]
+    hyp = hyperbola(2, 1, 2.1, 6, 20)
+    draw([hyp], 'Hyperbola', [False])
 
-    conditions = [(1, 1),
-                  (1, 1)]
+    el = ellipse(1, 4, 40)
+    draw([el], 'Ellipse', [True])
 
-    draw_spline(points, "fixed", conditions)
-    draw_spline(points, "weak")
-    draw_spline(points, "cyclic")
-    draw_spline(points, "acyclic")
+    par = parabola(1, 0, 3, 20)
+    draw([par], 'Parabola', [False])
 
-    draw_spline(points, "acyclic", transform=shift_matrix(-2, -3))
-    draw_spline(points, "acyclic", transform=rotate_matrix(30))
+    T = rotate_matrix(30 * m.pi / 180)
+    draw([transform(el, T)], 'Ellipse transformed', [True])
+
+    draw([par, hyp], 'Par, Hyp', [False, False])
+
+    T = shift_matrix(10, -2)
+    T1 = rotate_matrix(90 * m.pi / 180)
+    draw([transform(transform(par, T), T1), hyp], 'Par transformed, Hyp', [False, False], False)
